@@ -474,7 +474,7 @@ if st.button("Submit KPI for Analysis", type="primary", width='stretch'):
 
                 if failed_sections:
                     st.warning(
-                        f"تعذّر توليد الأقسام التالية وتم استخدام قيم افتراضية: "
+                        f"Failed to generate the following sections: "
                         f"{', '.join(failed_sections)}"
                     )
 
@@ -488,7 +488,7 @@ if st.button("Submit KPI for Analysis", type="primary", width='stretch'):
                 st.session_state.analysis_result = actual_analysis_result
 
             except Exception as e:
-                st.error(f"حدث خطأ أثناء التواصل مع نموذج الذكاء الاصطناعي: {str(e)}")
+                st.error(f"An error occurred while communicating with the AI model: {str(e)}")
                 st.session_state.analysis_metadata = None
                 st.session_state.analysis_data_points = None
                 st.session_state.analysis_result = None
@@ -497,7 +497,7 @@ if st.button("Submit KPI for Analysis", type="primary", width='stretch'):
 # ANALYSIS RESULTS & EXPORT
 # ===========================================================================
 if st.session_state.analysis_result is not None:
-    st.success("تم إرسال بيانات المؤشر بنجاح للتحليل!")
+    st.success("KPI analysis completed successfully!")
 
     st.json({
         "kpi_metadata": st.session_state.analysis_metadata,
@@ -506,20 +506,20 @@ if st.session_state.analysis_result is not None:
     })
 
     st.divider()
-    st.subheader("تصدير تقرير التحليل")
-    st.markdown("اختر لغة التقرير ونوع الملف لتحميل تقرير التحليل الشامل:")
+    st.subheader("Export Analysis Report")
+    st.markdown("Choose the report language and file type to download the comprehensive analysis report:")
 
     exp_col1, exp_col2 = st.columns(2)
     with exp_col1:
         export_language = st.radio(
-            "لغة التقرير:",
+            "Report Language:",
             ["العربية", "English"],
             horizontal=True,
             key="export_language",
         )
     with exp_col2:
         export_type = st.radio(
-            "نوع الملف:",
+            "File Type:",
             ["Word (DOCX)", "PDF"],
             horizontal=True,
             key="export_type",
@@ -556,11 +556,11 @@ if st.session_state.analysis_result is not None:
         filename = f"Analysis_Report_{lang_suffix}_{kpi_safe_name}.{file_ext}"
 
         st.download_button(
-            label=f"📥 تحميل كملف {export_type} ({export_language})",
+            label=f"📥 Download {export_type} ({export_language})",
             data=report_bytes,
             file_name=filename,
             mime=mime_type,
             type="primary",
         )
     except Exception as e:
-        st.error(f"حدث خطأ أثناء إعداد التقرير: {str(e)}")
+        st.error(f"An error occurred while generating the report: {str(e)}")
