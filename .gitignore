@@ -29,3 +29,7 @@ build/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Streamlit
+.streamlit/
+.streamlit/secrets.toml
