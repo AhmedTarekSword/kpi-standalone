@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import json
+import toons
 
 def parse_kpi_excel(file_path):
     df = pd.read_excel(file_path, sheet_name="PDCA")
@@ -63,7 +64,7 @@ def parse_kpi_excel(file_path):
             original_filename = os.path.basename(str(file_path))
             
         base_name = os.path.splitext(original_filename)[0]
-        json_filename = f"{base_name}.json"
+        json_filename = f"{base_name}.toon"
         
         # Get path to temp directory
         temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "temp")
@@ -71,8 +72,8 @@ def parse_kpi_excel(file_path):
         
         output_path = os.path.join(temp_dir, json_filename)
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
+            f.write(toons.dumps(result))
     except Exception as e:
-        print(f"Could not save JSON output: {e}")
+        print(f"Could not save TOON output: {e}")
 
     return result

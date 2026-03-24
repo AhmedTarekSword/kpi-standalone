@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any, Callable, Dict, List, Tuple
 
 from dotenv import load_dotenv
@@ -37,6 +38,23 @@ class GeminiClient:
     # Low-level generation helpers
     # ------------------------------------------------------------------
 
+    def _execute_with_retry(self, func: Callable, max_retries: int = 3, base_delay: float = 1.0, backoff_factor: float = 2.0) -> Any:
+        """Executes a function with an exponential backoff retry sequence."""
+        delay = base_delay
+        for attempt in range(max_retries + 1):
+            try:
+                return func()
+            except Exception as exc:
+                if attempt == max_retries:
+                    logger.error("Max retries (%d) reached. Final failure: %s", max_retries, exc)
+                    raise
+                logger.warning(
+                    "Attempt %d failed: %s. Retrying in %.2f seconds...",
+                    attempt + 1, exc, delay
+                )
+                time.sleep(delay)
+                delay *= backoff_factor
+
     def generate_json(self, system_instruction: str, user_prompt: str) -> str:
         """
         Generate a JSON response from Gemini (MIME type forced to application/json).
@@ -44,26 +62,28 @@ class GeminiClient:
         Returns:
             The raw response text, which should be valid JSON.
         """
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json"
-            )
-        )
-        return response.text
+        def _call_api():
+            return self.client.models.generate_content(
+                model=self.model_name,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json"
+                )
+            ).text
+        return self._execute_with_retry(_call_api)
 
     def generate_text(self, system_instruction: str, user_prompt: str) -> str:
         """Generate a standard text response from Gemini."""
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction
-            )
-        )
-        return response.text
+        def _call_api():
+            return self.client.models.generate_content(
+                model=self.model_name,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                )
+            ).text
+        return self._execute_with_retry(_call_api)
 
     # ------------------------------------------------------------------
     # Section runner

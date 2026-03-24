@@ -1,4 +1,5 @@
 import json
+import toons
 from typing import Any, Dict, List, Tuple
 
 # ---------------------------------------------------------------------------
@@ -30,9 +31,9 @@ def _context_block(kpi_metadata: Dict[str, Any], kpi_data_points: List[Dict[str,
     """Return the common KPI context block used by every section prompt."""
     return (
         f"===== KPI METADATA & CONTEXT =====\n"
-        f"{json.dumps(kpi_metadata, ensure_ascii=False, indent=2)}\n\n"
+        f"{toons.dumps(kpi_metadata)}\n\n"
         f"===== KPI DATA POINTS (PERIODIC ACTUALS VS TARGETS) =====\n"
-        f"{json.dumps(kpi_data_points, ensure_ascii=False, indent=2)}\n\n"
+        f"{toons.dumps(kpi_data_points)}\n\n"
     )
 
 # ---------------------------------------------------------------------------
