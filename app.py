@@ -454,19 +454,21 @@ if st.button("Submit KPI for Analysis", type="primary", width='stretch'):
             try:
                 gemini_client = GeminiClient()
 
+                # use_search=True enables Google Search grounding for richer external-events context
                 SECTIONS = [
-                    ("executive_summary",    build_executive_summary_prompt,    {"english": "", "arabic": ""}),
-                    ("performance_analysis", build_performance_analysis_prompt, {"english": "", "arabic": ""}),
-                    ("root_causes",          build_root_causes_prompt,          {"english": [], "arabic": []}),
-                    ("recommendations",      build_recommendations_prompt,      {"english": [], "arabic": []}),
+                    ("executive_summary",    build_executive_summary_prompt,    {"english": "", "arabic": ""},  False),
+                    ("performance_analysis", build_performance_analysis_prompt, {"english": "", "arabic": ""},  True),
+                    ("root_causes",          build_root_causes_prompt,          {"english": [], "arabic": []},  False),
+                    ("recommendations",      build_recommendations_prompt,      {"english": [], "arabic": []},  False),
                 ]
 
                 section_results = {}
                 failed_sections = []
 
-                for section_name, prompt_fn, fallback in SECTIONS:
+                for section_name, prompt_fn, fallback, use_search in SECTIONS:
                     result = gemini_client.run_section(
-                        section_name, prompt_fn, kpi_metadata, english_data_points, fallback
+                        section_name, prompt_fn, kpi_metadata, english_data_points, fallback,
+                        use_search=use_search,
                     )
                     section_results[section_name] = result
                     if result == fallback:

@@ -73,6 +73,53 @@ class GeminiClient:
             ).text
         return self._execute_with_retry(_call_api)
 
+    def generate_json_with_search(self, system_instruction: str, user_prompt: str) -> str:
+        """
+        Generate a JSON response enriched by Google Search grounding via a two-step approach.
+
+        Step 1: Call Gemini with Google Search enabled to obtain a grounded textual analysis.
+        Step 2: Call Gemini without search tools but with JSON MIME type, instructing it to
+                reformat the grounded text into the required JSON schema.
+
+        This two-step pattern is required because gemini-2.5-flash does not support combining
+        google_search tool use with response_mime_type='application/json' in a single call.
+
+        Returns:
+            The raw response text from step 2, which should be valid JSON.
+        """
+        # ── Step 1: grounded plain-text analysis ──────────────────────────────
+        def _search_call():
+            return self.client.models.generate_content(
+                model=self.model_name,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                )
+            ).text
+        grounded_text = self._execute_with_retry(_search_call)
+
+        # ── Step 2: reformat grounded text into the required JSON schema ──────
+        reformat_prompt = (
+            f"The following is a grounded analysis produced for a KPI report section.\n"
+            f"Your task is to reformat it into valid JSON matching the schema described in the "
+            f"original request below, preserving all information and language separation rules.\n\n"
+            f"GROUNDED ANALYSIS:\n{grounded_text}\n\n"
+            f"ORIGINAL REQUEST (schema and instructions):\n{user_prompt}"
+        )
+
+        def _json_format_call():
+            return self.client.models.generate_content(
+                model=self.model_name,
+                contents=reformat_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                )
+            ).text
+        return self._execute_with_retry(_json_format_call)
+
+
     def generate_text(self, system_instruction: str, user_prompt: str) -> str:
         """Generate a standard text response from Gemini."""
         def _call_api():
@@ -99,6 +146,7 @@ class GeminiClient:
         kpi_metadata: Dict[str, Any],
         kpi_data_points: List[Dict[str, Any]],
         fallback: Any,
+        use_search: bool = False,
     ) -> Any:
         """
         Build and execute a single report-section API call, with graceful fallback.
@@ -112,13 +160,18 @@ class GeminiClient:
             kpi_data_points: List of period data points passed through to the prompt builder.
             fallback:        Value returned when the call fails (e.g. {"english": "", "arabic": ""}
                              for text sections, or {"english": [], "arabic": []} for list sections).
+            use_search:      If True, Google Search grounding is enabled for this section,
+                             allowing the model to draw on broader real-world context.
 
         Returns:
             Parsed dict from the Gemini response on success, or `fallback` on any failure.
         """
         try:
             system_instruction, user_prompt = prompt_fn(kpi_metadata, kpi_data_points)
-            raw = self.generate_json(system_instruction, user_prompt)
+            if use_search:
+                raw = self.generate_json_with_search(system_instruction, user_prompt)
+            else:
+                raw = self.generate_json(system_instruction, user_prompt)
             result = json.loads(raw)
             logger.info("Section '%s' generated successfully.", section_name)
             return result

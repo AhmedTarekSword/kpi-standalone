@@ -46,6 +46,38 @@ _SECTION_LABELS = {
 }
 
 
+import re
+
+
+def _split_text_and_bullets(text: str):
+    """
+    Parse a text string that may contain Markdown-style bullet lines
+    (e.g. lines starting with '* ', '- ', or '•') mixed with regular prose.
+
+    Returns a list of (kind, content) tuples where kind is:
+      'text'   – a block of one or more non-bullet lines joined by newlines
+      'bullet' – a single bullet item (prefix stripped)
+    """
+    lines = text.splitlines()
+    result = []
+    prose_buf = []
+    bullet_pat = re.compile(r'^\s*[\*\-•]\s+')
+
+    for line in lines:
+        if bullet_pat.match(line):
+            if prose_buf:
+                result.append(("text", "\n".join(prose_buf).strip()))
+                prose_buf = []
+            result.append(("bullet", bullet_pat.sub("", line).strip()))
+        else:
+            prose_buf.append(line)
+
+    if prose_buf:
+        result.append(("text", "\n".join(prose_buf).strip()))
+
+    return result
+
+
 class ReportGenerator:
     """Generate Word and PDF reports from KPI analysis with RTL/LTR support."""
 
@@ -143,13 +175,20 @@ class ReportGenerator:
 
         for title, content in sections:
             if content:
+                doc.add_paragraph()  # Breathing space before each section heading
                 self._add_docx_heading(doc, title, level=1, is_arabic=is_arabic)
                 if isinstance(content, list):
                     for item in content:
                         self._add_docx_bullet(doc, item, is_arabic=is_arabic)
                 else:
-                    self._add_docx_text(doc, content, is_arabic=is_arabic)
-                doc.add_paragraph()
+                    # Handle markdown-style bullets inside prose text
+                    for kind, chunk in _split_text_and_bullets(content):
+                        if chunk:
+                            if kind == "bullet":
+                                self._add_docx_bullet(doc, chunk, is_arabic=is_arabic)
+                            else:
+                                self._add_docx_text(doc, chunk, is_arabic=is_arabic)
+                doc.add_paragraph()  # Trailing space after section content
 
     def _set_rtl_document(self, doc):
         """Set document direction to RTL for Arabic."""
@@ -302,8 +341,8 @@ class ReportGenerator:
             fontSize=16,
             textColor=HexColor("#4F46E5"),
             alignment=body_align,
-            spaceAfter=12,
-            spaceBefore=16,
+            spaceAfter=14,
+            spaceBefore=24,
             wordWrap="RTL" if is_arabic else "LTR",
         )
 
@@ -314,8 +353,8 @@ class ReportGenerator:
             fontSize=11,
             textColor=HexColor("#111827"),
             alignment=body_align,
-            spaceAfter=8,
-            leading=16,
+            spaceAfter=10,
+            leading=18,
             wordWrap="RTL" if is_arabic else "LTR",
         )
 
@@ -326,6 +365,7 @@ class ReportGenerator:
             rightIndent=20 if is_arabic else 0,
             bulletText="•",
             alignment=body_align,
+            spaceAfter=6,
         )
 
         return {
@@ -356,6 +396,19 @@ class ReportGenerator:
 
         for section_title, content in sections:
             if content:
+                # Section separator rule before each section (except the very first)
+                if elements and not isinstance(elements[-1], HRFlowable):
+                    elements.append(Spacer(1, 8))
+                    elements.append(
+                        HRFlowable(
+                            width="100%",
+                            thickness=0.5,
+                            color=HexColor("#D1D5DB"),
+                            spaceBefore=4,
+                            spaceAfter=4,
+                        )
+                    )
+
                 heading_text = self._reshape_arabic(section_title) if is_arabic else section_title
                 elements.append(Paragraph(heading_text, pdf_styles["heading"]))
 
@@ -364,10 +417,16 @@ class ReportGenerator:
                         text = self._reshape_arabic(item) if is_arabic else item
                         elements.append(Paragraph(f"• {text}", pdf_styles["bullet"]))
                 else:
-                    text = self._reshape_arabic(content) if is_arabic else content
-                    elements.append(Paragraph(text, pdf_styles["body"]))
+                    # Handle markdown-style bullets inside prose text
+                    for kind, chunk in _split_text_and_bullets(content):
+                        if chunk:
+                            rendered = self._reshape_arabic(chunk) if is_arabic else chunk
+                            if kind == "bullet":
+                                elements.append(Paragraph(f"• {rendered}", pdf_styles["bullet"]))
+                            else:
+                                elements.append(Paragraph(rendered, pdf_styles["body"]))
 
-                elements.append(Spacer(1, 12))
+                elements.append(Spacer(1, 20))
 
     def generate_pdf_base64(
         self,
